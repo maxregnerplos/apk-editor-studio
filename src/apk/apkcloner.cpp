@@ -41,6 +41,25 @@ void ApkCloner::start()
             }
         }
 
+        // Update references in AndroidManifest.xml:
+
+        const auto manifestPath = contentsPath + "/AndroidManifest.xml";
+        emit progressed(tr("Updating AndroidManifest.xml..."), manifestPath.mid(contentsPath.size() + 1));
+
+        QFile file(manifestPath);
+        if (file.open(QFile::ReadWrite)) {
+            const QString data(file.readAll());
+            QString newData(data);
+            newData.replace(originalPackageName, newPackageName);
+            if (newData != data) {
+                file.resize(0);
+                file.write(newData.toUtf8());
+            }
+            file.close();
+        }
+
+        
+
         const auto smaliDirs = QDir(contentsPath).entryList({"smali*"}, QDir::Dirs);
         for (const auto &smaliDir : smaliDirs) {
 
