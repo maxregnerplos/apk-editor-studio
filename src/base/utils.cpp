@@ -401,7 +401,150 @@ QString Utils::getAndroidCodename(int api)
         return "4.4 - 4.4.4 - KitKat Wear";
     case ANDROID_21:
         return "5.0 - Lollipop";
-    case ANDROID_22:
+    case ANDROID_22:#include "apk/apkcloner.h"
+#include <QDirIterator>
+#include <QtConcurrent/QtConcurrent>
+
+ApkCloner::ApkCloner(const QString &contentsPath, const QString &originalPackageName, const QString &newPackageName, QObject *parent)
+    : QObject(parent)
+    , contentsPath(contentsPath)
+    , originalPackageName(originalPackageName)
+    , newPackageName(newPackageName)
+{
+    newPackagePath = newPackageName;
+    newPackagePath.replace('.', '/');
+
+    originalPackagePath = originalPackageName;
+    originalPackagePath.replace('.', '/');
+}
+
+void ApkCloner::start()
+{
+    QtConcurrent::run([this]() {
+        emit started();
+
+        // Update references in resources:
+
+        const auto resourcesPath = contentsPath + "/res/";
+        QDirIterator files(resourcesPath, QDir::Files, QDirIterator::Subdirectories);
+        while (files.hasNext()) {
+            const QString path(files.next());
+            emit progressed(tr("Updating resource references..."), path.mid(contentsPath.size() + 1));
+
+            QFile file(path);
+            if (file.open(QFile::ReadWrite)) {
+                const QString data(file.readAll());
+                QString newData(data);
+                newData.replace(originalPackageName, newPackageName);
+                if (newData != data) {
+                    file.resize(0);
+                    file.write(newData.toUtf8());
+                }
+                file.close();
+            }
+        }
+
+        // Update references in AndroidManifest.xml:
+
+        const auto manifestPath = contentsPath + "/AndroidManifest.xml";
+        emit progressed(tr("Updating AndroidManifest.xml..."), manifestPath.mid(contentsPath.size() + 1));
+
+        QFile file(manifestPath);
+        if (file.open(QFile::ReadWrite)) {
+            const QString data(file.readAll());
+            QString newData(data);
+            newData.replace(originalPackageName, newPackageName);
+            if (newData != data) {
+                file.resize(0);
+                file.write(newData.toUtf8());
+            }
+            file.close();
+        }
+
+       //add function to port an apk from base apk to port apk 
+       
+         void ApkCloner::portApk(const QString &contentsPath, const QString &originalPackageName, const QString &newPackageName, QObject *parent)
+    : QObject(parent)
+    , contentsPath(contentsPath)
+    , originalPackageName(originalPackageName)
+    , newPackageName(newPackageName)
+{
+    newPackagePath = newPackageName;
+    newPackagePath.replace('.', '/');
+    originalPackagePath = originalPackageName;
+    originalPackagePath.replace('.', '/');
+
+    //port apk theme from one apk to another apk
+    const auto portPath = contentsPath + "/res/";
+    QDirIterator files(portPath, QDir::Files, QDirIterator::Subdirectories);
+    while (files.hasNext()) {
+        const QString path(files.next());
+        emit progressed(tr("Updating resource references..."), path.mid(contentsPath.size() + 1));
+
+        QFile file(path);
+        if (file.open(QFile::ReadWrite)) {
+            const QString data(file.readAll());
+            QString newData(data);
+            newData.replace(originalPackageName, newPackageName);
+            if (newData != data) {
+                file.resize(0);
+                file.write(newData.toUtf8());
+            }
+            file.close();
+        }
+    }
+}
+
+
+
+
+        const auto smaliDirs = QDir(contentsPath).entryList({"smali*"}, QDir::Dirs);
+        for (const auto &smaliDir : smaliDirs) {
+
+            const auto smaliPath = QString("%1/%2/").arg(contentsPath, smaliDir);
+
+            // Update references in smali:
+
+            QDirIterator files(smaliPath, QDir::Files, QDirIterator::Subdirectories);
+            while (files.hasNext()) {
+                const QString path(files.next());
+                //: "Smali" is the name of the tool/format, don't translate it.
+                emit progressed(tr("Updating Smali references..."), path.mid(contentsPath.size() + 1));
+
+                QFile file(path);
+                if (file.open(QFile::ReadWrite)) {
+                    const QString data(file.readAll());
+                    QString newData(data);
+                    newData.replace('L' + originalPackagePath, 'L' + newPackagePath);
+                    newData.replace(originalPackageName, newPackageName);
+                    if (newData != data) {
+                        file.resize(0);
+                        file.write(newData.toUtf8());
+                    }
+                    file.close();
+                }
+            }
+
+            // Update directory structure:
+
+            emit progressed(tr("Updating directory structure..."), smaliDir);
+
+            const auto fullPackagePath = smaliPath + newPackagePath;
+            const auto fullOriginalPackagePath = smaliPath + originalPackagePath;
+            if (!QDir().exists(fullOriginalPackagePath)) {
+                continue;
+            }
+            QDir().mkpath(QFileInfo(fullPackagePath).path());
+            if (!QDir().rename(fullOriginalPackagePath, fullPackagePath)) {
+                emit finished(false);
+                return;
+            }
+        }
+\
+        emit finished(true);
+    });
+}
+
         return "5.1 - Lollipop";
     case ANDROID_23:
         return "6.0 - Marshmallow";
