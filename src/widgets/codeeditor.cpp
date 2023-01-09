@@ -138,6 +138,113 @@ void CodeEditor::replaceAll(const QString &with)
     if (searchQuery.isEmpty()) {
         return;
     }
+    const auto cursor = textCursor();
+    const auto start = cursor.selectionStart();
+    const auto end = cursor.selectionEnd();
+    cursor.setPosition(start);
+    setTextCursor(cursor);
+    while (find(searchQuery, searchByRegex)) {
+        replaceOne(with);
+    }
+    cursor.setPosition(start);
+    cursor.setPosition(end, QTextCursor::KeepAnchor);
+    setTextCursor(cursor);
+}
+
+void CodeEditor::nextSearchQuery()
+{
+    if (searchQuery.isEmpty()) {
+        return;
+    }
+    const auto cursor = textCursor();
+    const auto start = cursor.selectionStart();
+    const auto end = cursor.selectionEnd();
+    cursor.setPosition(end);
+    setTextCursor(cursor);
+    if (!find(searchQuery, searchByRegex)) {
+        cursor.setPosition(start);
+        setTextCursor(cursor);
+        find(searchQuery, searchByRegex);
+    }
+}
+
+void CodeEditor::previousSearchQuery()
+{
+    if (searchQuery.isEmpty()) {
+        return;
+    }
+    const auto cursor = textCursor();
+    const auto start = cursor.selectionStart();
+    const auto end = cursor.selectionEnd();
+    cursor.setPosition(start);
+    setTextCursor(cursor);
+    if (!find(searchQuery, searchByRegex, QTextDocument::FindBackward)) {
+        cursor.setPosition(end);
+        setTextCursor(cursor);
+        find(searchQuery, searchByRegex, QTextDocument::FindBackward);
+    }
+}
+
+
+bool CodeEditor::isFolded(const QTextBlock &block) const
+{
+    if (!block.isValid()) {
+        return false;
+    }
+    const auto nextBlock = block.next();
+    if (!nextBlock.isValid()) {
+        return false;
+    }
+    return !nextBlock.isVisible();
+}
+
+void CodeEditor::toggleFold(const QTextBlock &startBlock)
+{
+    const auto endBlock = highlighter->findFoldingRegionEnd(startBlock).next();
+    if (isFolded(startBlock)) {
+        auto block = startBlock.next();
+        while (block.isValid() && !block.isVisible()) {
+            block.setVisible(true);
+            block.setLineCount(block.layout()->lineCount());
+            block = block.next();
+        }
+    } else {
+        auto block = startBlock.next();
+        while (block.isValid() && block != endBlock) {
+            block.setVisible(false);
+            block.setLineCount(0);
+            block = block.next();
+        }
+    }
+    document()->markContentsDirty(startBlock.position(), endBlock.position() - startBlock.position() + 1);
+    emit document()->documentLayout()->documentSizeChanged(document()->documentLayout()->documentSize());
+}
+
+void CodeEditor::replaceOne(const QString &with)
+{
+    if (searchQuery.isEmpty()) {
+        return;
+    }
+    const QString selectedText = textCursor().selectedText();
+    if (!selectedText.isEmpty()) {
+        if (!searchByRegex) {
+            if (selectedText == searchQuery) {
+                textCursor().insertText(with);
+            }
+        } else {
+            if (QRegularExpression(searchQuery).match(selectedText).captured() == selectedText) {
+                textCursor().insertText(with);
+            }
+        }
+    }
+    nextSearchQuery();
+}
+
+void CodeEditor::replaceAll(const QString &with)
+{
+    if (searchQuery.isEmpty()) {
+        return;
+    }
     auto replaceCursor = find();
     if (replaceCursor.isNull()) {
         return;
